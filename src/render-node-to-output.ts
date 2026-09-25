@@ -163,7 +163,11 @@ const renderNodeToOutput = (
 			if (position !== undefined) {
 				const {x: newX, y: newY} = position;
 				effects = {
-					cursorPosition: {x: x + newX, y: y + newY},
+					cursorPosition: {
+						x: x + newX,
+						y: y + newY,
+						shape: cursor!.cursorShape,
+					},
 				};
 			}
 
@@ -177,7 +181,7 @@ const renderNodeToOutput = (
 			// If there's no text, we've encountered
 			// a bare Cursor
 			effects = {
-				cursorPosition: {x, y},
+				cursorPosition: {x, y, shape: cursor.cursorShape},
 			};
 			// We still go ahead and write an empty
 			// string with the Effects in case clipping

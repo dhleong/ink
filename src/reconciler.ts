@@ -28,6 +28,7 @@ import {
 } from './dom.js';
 import applyStyles, {type Styles} from './styles.js';
 import {type OutputTransformer} from './render-node-to-output.js';
+import {type CursorShape} from './cursor-helpers.js';
 
 // We need to conditionally perform devtools connection to avoid
 // accidentally breaking other third-party code.
@@ -318,6 +319,11 @@ const hostConfig: HostConfig = {
 
 			if (key === 'internal_cursorOffset') {
 				node.internal_cursorOffset = value as number;
+				continue;
+			}
+
+			if (key === 'internal_cursorShape') {
+				node.internal_cursorShape = value as CursorShape;
 				continue;
 			}
 
