@@ -2,6 +2,7 @@ import wrapAnsi from 'wrap-ansi';
 import {type DOMElement} from './dom.js';
 import sanitizeAnsi from './sanitize-ansi.js';
 import {tokenizeAnsi} from './ansi-tokenizer.js';
+import {type CursorShape} from './cursor-helpers.js';
 
 type SquashedOutput = {
 	text: string;
@@ -11,6 +12,7 @@ type SquashedOutput = {
 	 * Ansi sequences are not counted
 	 */
 	cursorOffset?: number;
+	cursorShape?: CursorShape;
 };
 
 // Squashing text nodes allows to combine multiple text nodes into one and write
@@ -21,6 +23,7 @@ type SquashedOutput = {
 // which need to wrap all children at once, instead of wrapping 3 text nodes separately.
 const squashTextNodes = (node: DOMElement): SquashedOutput => {
 	let cursor: number | undefined;
+	let cursorShape: CursorShape | undefined;
 	let text = '';
 
 	for (const childNode of node.childNodes) {
@@ -37,15 +40,21 @@ const squashTextNodes = (node: DOMElement): SquashedOutput => {
 				childNode.nodeName === 'ink-text' ||
 				childNode.nodeName === 'ink-virtual-text'
 			) {
-				const {text: newNodeText, cursorOffset} = squashTextNodes(childNode);
+				const {
+					text: newNodeText,
+					cursorOffset,
+					cursorShape: newCursorShape,
+				} = squashTextNodes(childNode);
 				nodeText = newNodeText;
 				if (childNode.internal_cursorOffset !== undefined) {
 					// Outer Cursor elements override inner ones
 					cursor =
 						text.length +
 						Math.min(newNodeText.length, childNode.internal_cursorOffset);
+					cursorShape = childNode.internal_cursorShape;
 				} else if (cursorOffset !== undefined) {
 					cursor = text.length + cursorOffset;
+					cursorShape = newCursorShape;
 				}
 			}
 
@@ -94,6 +103,7 @@ const squashTextNodes = (node: DOMElement): SquashedOutput => {
 	return {
 		text,
 		cursorOffset: cursor,
+		cursorShape,
 	};
 };
 

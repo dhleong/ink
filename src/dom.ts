@@ -4,6 +4,7 @@ import {type Styles} from './styles.js';
 import wrapText from './wrap-text.js';
 import squashTextNodes from './squash-text-nodes.js';
 import {type OutputTransformer} from './render-node-to-output.js';
+import {type CursorShape} from './cursor-helpers.js';
 
 type InkNode = {
 	parentNode: DOMElement | undefined;
@@ -74,6 +75,7 @@ export type DOMElement = {
 
 	/** Character offset within an ink-text at which to place the cursor */
 	internal_cursorOffset?: number;
+	internal_cursorShape?: CursorShape;
 } & InkNode;
 
 export type TextNode = {

@@ -32,5 +32,6 @@ declare namespace Ink {
 		internal_transform?: (children: string, index: number) => string;
 		internal_accessibility?: DOMElement['internal_accessibility'];
 		internal_cursorOffset?: TextNode['internal_cursorOffset'];
+		internal_cursorShape?: TextNode['internal_cursorShape'];
 	};
 }

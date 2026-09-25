@@ -150,7 +150,7 @@ const renderNodeToOutput = (
 		}
 
 		if (node.nodeName === 'ink-text') {
-			let {text, cursorOffset} = squashTextNodes(node);
+			let {text, cursorOffset, cursorShape} = squashTextNodes(node);
 			let effects: RenderEffects | undefined;
 
 			if (text.length > 0) {
@@ -188,7 +188,7 @@ const renderNodeToOutput = (
 					}
 
 					effects = {
-						cursorPosition: {x: x + newX, y: y + newY},
+						cursorPosition: {x: x + newX, y: y + newY, shape: cursorShape},
 					};
 				}
 

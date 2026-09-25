@@ -15,6 +15,7 @@ import reconciler from './reconciler.js';
 import render from './renderer.js';
 import * as dom from './dom.js';
 import {
+	buildCursorShape,
 	cursorPositionChanged,
 	hideCursorEscape,
 	showCursorEscape,
@@ -223,6 +224,7 @@ export default class Ink {
 	private readonly log: LogUpdate;
 	private cursorMode: CursorMode | undefined;
 	private cursorPosition: CursorPosition | undefined;
+	private hasSetCursorShape = false;
 	private readonly throttledLog:
 		LogUpdate | DebouncedFunc<(output: string) => void>;
 
@@ -480,6 +482,7 @@ export default class Ink {
 
 		this.cursorMode = expectedMode;
 		this.cursorPosition = position;
+		this.hasSetCursorShape ||= position?.shape !== undefined;
 		this.log.setCursorPosition(position);
 	};
 
@@ -748,6 +751,14 @@ export default class Ink {
 				if (this.kittyProtocolEnabled) {
 					this.writeBestEffort(this.options.stdout, '\u001B[<u');
 					this.kittyProtocolEnabled = false;
+				}
+
+				if (this.hasSetCursorShape) {
+					this.writeBestEffort(
+						this.options.stdout,
+						buildCursorShape('default'),
+					);
+					this.hasSetCursorShape = false;
 				}
 
 				if (this.interactive && !this.options.debug) {

@@ -1,8 +1,21 @@
 import ansiEscapes from 'ansi-escapes';
 
+const cursorShapeToAnsiCode = {
+	default: 0,
+	blockBlink: 1,
+	block: 2,
+	underscoreBlink: 3,
+	underscore: 4,
+	pipeBlink: 5,
+	pipe: 6,
+};
+
+export type CursorShape = keyof typeof cursorShapeToAnsiCode;
+
 export type CursorPosition = {
 	x: number;
 	y: number;
+	shape?: CursorShape;
 };
 
 const showCursorEscape = '\u001B[?25h';
@@ -16,7 +29,7 @@ Compare two cursor positions. Returns true if they differ.
 export const cursorPositionChanged = (
 	a: CursorPosition | undefined,
 	b: CursorPosition | undefined,
-): boolean => a?.x !== b?.x || a?.y !== b?.y;
+): boolean => a?.x !== b?.x || a?.y !== b?.y || a?.shape !== b?.shape;
 
 /**
 Build escape sequence to move cursor from the bottom of the output to the target position and show it.
@@ -44,6 +57,7 @@ export const buildCursorSuffix = (
 	return (
 		(moveUp > 0 ? ansiEscapes.cursorUp(moveUp) : '') +
 		ansiEscapes.cursorTo(cursorPosition.x) +
+		buildCursorShape(cursorPosition.shape) +
 		showCursorEscape
 	);
 };
@@ -139,4 +153,13 @@ export const buildEraseFrame = (
 		ansiEscapes.cursorTo(0) +
 		ansiEscapes.eraseDown
 	);
+};
+
+export const buildCursorShape = (shape: CursorShape | undefined) => {
+	if (shape === undefined) {
+		return '';
+	}
+
+	const code = cursorShapeToAnsiCode[shape];
+	return `\u001B[${code} q`;
 };
