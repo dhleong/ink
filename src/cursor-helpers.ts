@@ -164,7 +164,7 @@ export class InlineCursorHelper {
 	private text = '';
 	private cursorIndex: number | undefined;
 	private cursorAtEnd = false;
-	private setCursorShape: CursorShape | undefined;
+	private currentCursorShape: CursorShape | undefined;
 
 	private isTransformed = false;
 	private textWithCursor: string | undefined;
@@ -206,7 +206,7 @@ export class InlineCursorHelper {
 	}
 
 	public get cursorShape() {
-		return this.setCursorShape;
+		return this.currentCursorShape;
 	}
 
 	public get hasCursor() {
@@ -233,10 +233,10 @@ export class InlineCursorHelper {
 
 		if (other.cursorIndex !== undefined) {
 			this.cursorIndex = this.text.length + other.cursorIndex;
-			this.setCursorShape = other.cursorShape;
+			this.currentCursorShape = other.cursorShape;
 		} else if (other.cursorAtEnd) {
 			this.cursorAtEnd = true;
-			this.setCursorShape = other.cursorShape;
+			this.currentCursorShape = other.cursorShape;
 		}
 
 		this.text += other.text;
@@ -255,7 +255,7 @@ export class InlineCursorHelper {
 	public setCursorPosition(shape: CursorShape | undefined) {
 		this.cursorIndex = undefined;
 		this.cursorAtEnd = true;
-		this.setCursorShape = shape;
+		this.currentCursorShape = shape;
 	}
 
 	public locateCursorPosition(): CursorPosition | undefined {

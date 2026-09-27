@@ -18,10 +18,10 @@ import {
 	Transform,
 } from '../src/index.js';
 import {homeAndEraseDown} from '../src/ink.js';
+import {buildCursorShape} from '../src/cursor-helpers.js';
 import {createStdin, emitReadable} from './helpers/create-stdin.js';
 import createStdout, {type FakeStdout} from './helpers/create-stdout.js';
 import {act} from './helpers/act.js';
-import {buildCursorShape} from '../src/cursor-helpers.js';
 
 const IS_ELLIPSIZE_CURSOR = true;
 
