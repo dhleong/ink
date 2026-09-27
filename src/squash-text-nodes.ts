@@ -82,6 +82,10 @@ const squashTextNodes = (node: DOMElement): SquashedOutput => {
 	) {
 		// The only valid cursorOffset in this situation is zero; so if it's set it must be zero
 		cursor = 0;
+
+		if (node.internal_cursorShape !== undefined) {
+			cursorShape = node.internal_cursorShape;
+		}
 	}
 
 	// Normalize cursor *before* expanding tabs or sanitizing, since

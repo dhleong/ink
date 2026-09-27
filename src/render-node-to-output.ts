@@ -202,7 +202,7 @@ const renderNodeToOutput = (
 				// If there's no text, we've encountered
 				// a bare Cursor
 				effects = {
-					cursorPosition: {x, y},
+					cursorPosition: {x, y, shape: cursorShape},
 				};
 				// We still go ahead and write an empty
 				// string with the Effects in case clipping
