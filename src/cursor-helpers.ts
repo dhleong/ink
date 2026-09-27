@@ -164,12 +164,11 @@ export class InlineCursorHelper {
 	private text = '';
 	private cursorIndex: number | undefined;
 	private cursorAtEnd = false;
+	private setCursorShape: CursorShape | undefined;
 
 	private isTransformed = false;
 	private textWithCursor: string | undefined;
 	private cursorSequence: string | undefined;
-
-	public cursorShape: CursorShape | undefined;
 
 	private ensureTextWithCursor() {
 		if (this.textWithCursor !== undefined) {
@@ -206,6 +205,10 @@ export class InlineCursorHelper {
 		return withCursor;
 	}
 
+	public get cursorShape() {
+		return this.setCursorShape;
+	}
+
 	public get hasCursor() {
 		return this.cursorAtEnd || this.cursorIndex !== undefined;
 	}
@@ -230,8 +233,10 @@ export class InlineCursorHelper {
 
 		if (other.cursorIndex !== undefined) {
 			this.cursorIndex = this.text.length + other.cursorIndex;
+			this.setCursorShape = other.cursorShape;
 		} else if (other.cursorAtEnd) {
 			this.cursorAtEnd = true;
+			this.setCursorShape = other.cursorShape;
 		}
 
 		this.text += other.text;
@@ -247,9 +252,10 @@ export class InlineCursorHelper {
 		this.text = handler(this.text);
 	}
 
-	public setCursorPosition() {
+	public setCursorPosition(shape: CursorShape | undefined) {
 		this.cursorIndex = undefined;
 		this.cursorAtEnd = true;
+		this.setCursorShape = shape;
 	}
 
 	public locateCursorPosition(): CursorPosition | undefined {
@@ -316,5 +322,5 @@ export const buildCursorShape = (shape: CursorShape | undefined) => {
 	}
 
 	const code = cursorShapeToAnsiCode[shape];
-	return `\u001B[${code} q`;
+	return `\u{1B}[${code} q`;
 };

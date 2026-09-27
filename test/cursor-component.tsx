@@ -21,6 +21,7 @@ import {homeAndEraseDown} from '../src/ink.js';
 import {createStdin, emitReadable} from './helpers/create-stdin.js';
 import createStdout, {type FakeStdout} from './helpers/create-stdout.js';
 import {act} from './helpers/act.js';
+import {buildCursorShape} from '../src/cursor-helpers.js';
 
 const IS_ELLIPSIZE_CURSOR = true;
 
@@ -84,6 +85,7 @@ type InteractiveRenderProps = {
 	stdin: NodeJS.WriteStream;
 	stdout: FakeStdout;
 	getLastCursor: () => CursorPosition | undefined;
+	getLastCursorCoord: () => Omit<CursorPosition, 'shape'> | undefined;
 	getWriteCallsString: () => string;
 	getLastTrimmedRender: () => string;
 };
@@ -139,6 +141,10 @@ async function withInteractiveRender(
 			stdin,
 			stdout,
 			getLastCursor: () => lastCursor,
+			getLastCursorCoord: () =>
+				lastCursor === undefined
+					? undefined
+					: {x: lastCursor.x, y: lastCursor.y},
 			getWriteCallsString,
 			getLastTrimmedRender: () => stripAnsi(getWriteCallsString()).trim(),
 		});
@@ -912,7 +918,7 @@ for (const {name, incremental} of inkRenderingModes) {
 			false,
 		);
 
-		t.assert.deepStrictEqual(lastCursor, {x: 3, y: 2});
+		t.assert.deepStrictEqual(lastCursor, {x: 3, y: 2, shape: undefined});
 
 		unmount();
 	});
@@ -920,55 +926,76 @@ for (const {name, incremental} of inkRenderingModes) {
 
 for (const [i, config] of (
 	[
-		{text: '', cursorTo: 2, cursorUp: 1, cursor: {x: 2, y: 0}},
-		{text: 'the quick', cursorTo: 5, cursorUp: 1, cursor: {x: 5, y: 2}},
-		{text: '3456 7', cursorTo: 1, cursorUp: 1, cursor: {x: 1, y: 2}},
-		{text: '3456 7', cursorTo: 1, cursorUp: 1, cursor: {x: 1, y: 2}},
+		{
+			text: '',
+			cursorTo: 2,
+			cursorUp: 1,
+			cursor: {x: 2, y: 0, shape: undefined},
+		},
+		{
+			text: 'the quick',
+			cursorTo: 5,
+			cursorUp: 1,
+			cursor: {x: 5, y: 2, shape: undefined},
+		},
+		{
+			text: '3456 7',
+			cursorTo: 1,
+			cursorUp: 1,
+			cursor: {x: 1, y: 2, shape: undefined},
+		},
+		{
+			text: '3456 7',
+			cursorTo: 1,
+			cursorUp: 1,
+			cursor: {x: 1, y: 2, shape: undefined},
+		},
 	] as const
 ).entries()) {
 	test(`cursor wraps after text #${i}`, async (t: TestContext) => {
-		const stdout = createStdout(5);
-		const stdin = createStdin();
-
-		let lastCursor: CursorPosition | undefined;
-		const onCursorUpdated = (cursor: CursorPosition | undefined) => {
-			lastCursor = cursor;
-		};
-
-		const {unmount, waitUntilRenderFlush} = render(
+		await withInteractiveRender(
 			<InputApp initialText={config.text} />,
-			{stdout, stdin, onCursorUpdated},
+			({getLastCursor, getWriteCallsString}) => {
+				const firstRenderOutput = getWriteCallsString();
+				t.assert.ok(
+					firstRenderOutput.includes(showCursorEscape),
+					'cursor should be visible after first render',
+				);
+				t.assert.deepStrictEqual(
+					getLastCursor(),
+					config.cursor,
+					`cursor should be at ${JSON.stringify(config.cursor)}`,
+				);
+				t.assert.ok(
+					firstRenderOutput.includes(ansiEscapes.cursorTo(config.cursorTo)),
+					`cursor should be at column ${config.cursorTo}; saw ${JSON.stringify(firstRenderOutput)}`,
+				);
+				// It renders with a trailing newline, so need to move up one row
+				t.assert.ok(
+					firstRenderOutput.includes(ansiEscapes.cursorUp(config.cursorUp)),
+					`cursor should be on last visible line - ${config.cursorUp - 1}`,
+				);
+			},
 		);
-		await waitUntilRenderFlush();
-
-		const firstRenderOutput = getWriteCalls(stdout).join('');
-		t.assert.ok(
-			firstRenderOutput.includes(showCursorEscape),
-			'cursor should be visible after first render',
-		);
-		t.assert.deepStrictEqual(
-			lastCursor,
-			config.cursor,
-			`cursor should be at ${JSON.stringify(config.cursor)}`,
-		);
-		t.assert.ok(
-			firstRenderOutput.includes(ansiEscapes.cursorTo(config.cursorTo)),
-			`cursor should be at column ${config.cursorTo}; saw ${JSON.stringify(firstRenderOutput)}`,
-		);
-		// It renders with a trailing newline, so need to move up one row
-		t.assert.ok(
-			firstRenderOutput.includes(ansiEscapes.cursorUp(config.cursorUp)),
-			`cursor should be on last visible line - ${config.cursorUp - 1}`,
-		);
-
-		unmount();
 	});
 }
 
 for (const [i, config] of (
 	[
-		{text: '01 345', offset: 3, cursorTo: 0, cursorUp: 1, cursor: {x: 0, y: 1}},
-		{text: '0\n23', offset: 3, cursorTo: 1, cursorUp: 1, cursor: {x: 1, y: 1}},
+		{
+			text: '01 345',
+			offset: 3,
+			cursorTo: 0,
+			cursorUp: 1,
+			cursor: {x: 0, y: 1, shape: undefined},
+		},
+		{
+			text: '0\n23',
+			offset: 3,
+			cursorTo: 1,
+			cursorUp: 1,
+			cursor: {x: 1, y: 1, shape: undefined},
+		},
 	] as const
 ).entries()) {
 	test(`cursor wraps within text #${i}`, async (t: TestContext) => {
@@ -1034,7 +1061,11 @@ for (const {wrap, expected, cursorOnEllipsis} of [
 				if (IS_ELLIPSIZE_CURSOR && cursorOnEllipsis === true) {
 					t.assert.strictEqual(getLastCursor(), undefined);
 				} else {
-					t.assert.deepStrictEqual(getLastCursor(), {x: 0, y: 0});
+					t.assert.deepStrictEqual(getLastCursor(), {
+						x: 0,
+						y: 0,
+						shape: undefined,
+					});
 				}
 			},
 		);
@@ -1056,7 +1087,11 @@ for (const {wrap, expected} of [
 			</Box>,
 			async ({getLastCursor, getLastTrimmedRender}) => {
 				t.assert.strictEqual(getLastTrimmedRender(), expected);
-				t.assert.deepStrictEqual(getLastCursor(), {x: 5, y: 0});
+				t.assert.deepStrictEqual(getLastCursor(), {
+					x: 5,
+					y: 0,
+					shape: undefined,
+				});
 			},
 		);
 	});
@@ -1075,7 +1110,11 @@ test('truncate-middle with truncated <Cursor /> renders on the ellipsis', async 
 			if (IS_ELLIPSIZE_CURSOR) {
 				t.assert.strictEqual(getLastCursor(), undefined);
 			} else {
-				t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 0});
+				t.assert.deepStrictEqual(getLastCursor(), {
+					x: 2,
+					y: 0,
+					shape: undefined,
+				});
 			}
 		},
 	);
@@ -1092,7 +1131,7 @@ test('wrap=truncate-middle - cursor in retained suffix', async (t: TestContext) 
 		</Box>,
 		async ({getLastCursor, getLastTrimmedRender}) => {
 			t.assert.strictEqual(getLastTrimmedRender(), 'abc…hi');
-			t.assert.deepStrictEqual(getLastCursor(), {x: 4, y: 0});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 4, y: 0, shape: undefined});
 		},
 	);
 });
@@ -1107,7 +1146,7 @@ test('wrap=truncate-middle - cursor within retained suffix', async (t: TestConte
 		</Box>,
 		async ({getLastCursor, getLastTrimmedRender}) => {
 			t.assert.strictEqual(getLastTrimmedRender(), 'abc…hi');
-			t.assert.deepStrictEqual(getLastCursor(), {x: 5, y: 0});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 5, y: 0, shape: undefined});
 		},
 	);
 });
@@ -1128,7 +1167,11 @@ test('wrap=truncate-middle - multiline with cursor on second line', async (t: Te
 			if (IS_ELLIPSIZE_CURSOR) {
 				t.assert.strictEqual(getLastCursor(), undefined);
 			} else {
-				t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 1});
+				t.assert.deepStrictEqual(getLastCursor(), {
+					x: 2,
+					y: 1,
+					shape: undefined,
+				});
 			}
 		},
 	);
@@ -1142,7 +1185,7 @@ test('padding with <Cursor /> is counted once', async (t: TestContext) => {
 			</Text>
 		</Box>,
 		({getLastCursor}) => {
-			t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 2});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 2, shape: undefined});
 		},
 	);
 });
@@ -1180,7 +1223,7 @@ test('<Cursor /> handles wide characters', async (t: TestContext) => {
 		</Box>,
 		{stdoutColumns: 4},
 		({getLastCursor}) => {
-			t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 1});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 1, shape: undefined});
 		},
 	);
 });
@@ -1195,7 +1238,7 @@ test('<Cursor /> interleaves in wide and narrow characters', async (t: TestConte
 		</Box>,
 		{stdoutColumns: 4},
 		({getLastCursor}) => {
-			t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 1});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 1, shape: undefined});
 		},
 	);
 });
@@ -1211,7 +1254,7 @@ test('<Cursor /> handles ansi sanitization', async (t: TestContext) => {
 		</Box>,
 		{stdoutColumns: 4},
 		({getLastCursor}) => {
-			t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 0});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 2, y: 0, shape: undefined});
 		},
 	);
 });
@@ -1226,7 +1269,7 @@ test('<Cursor /> handles styling', async (t: TestContext) => {
 		</Box>,
 		{stdoutColumns: 3},
 		({getLastCursor}) => {
-			t.assert.deepStrictEqual(getLastCursor(), {x: 1, y: 1});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 1, y: 1, shape: undefined});
 		},
 	);
 });
@@ -1245,7 +1288,7 @@ test('<Cursor /> handles placement within styling', async (t: TestContext) => {
 		{stdoutColumns: 3},
 		({getLastCursor, getWriteCallsString}) => {
 			t.assert.ok(getWriteCallsString().includes(ansiStyles.red.open));
-			t.assert.deepStrictEqual(getLastCursor(), {x: 1, y: 0});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 1, y: 0, shape: undefined});
 		},
 	);
 });
@@ -1273,7 +1316,7 @@ test('<Cursor /> handles style-adding transforms', async (t: TestContext) => {
 	);
 	await waitUntilRenderFlush();
 
-	t.assert.deepStrictEqual(lastCursor, {x: 1, y: 1});
+	t.assert.deepStrictEqual(lastCursor, {x: 1, y: 1, shape: undefined});
 
 	unmount();
 });
@@ -1309,7 +1352,7 @@ test('<Cursor /> is shown when rendered by itself', async (t: TestContext) => {
 		</Box>,
 		{stdoutColumns: 3},
 		({getLastCursor, getWriteCallsString}) => {
-			t.assert.deepStrictEqual(getLastCursor(), {x: 0, y: 0});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 0, y: 0, shape: undefined});
 
 			const firstRenderOutput = getWriteCallsString();
 			t.assert.ok(
@@ -1325,16 +1368,20 @@ test('<Cursor /> within truncate', async (t: TestContext) => {
 		<Box>
 			<Text wrap="truncate-end">
 				a
-				<Cursor />b
+				<Cursor shape="pipe" />b
 			</Text>
 		</Box>,
 		({getLastCursor, getWriteCallsString}) => {
-			t.assert.deepStrictEqual(getLastCursor(), {x: 1, y: 0});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 1, y: 0, shape: 'pipe'});
 
 			const firstRenderOutput = getWriteCallsString();
 			t.assert.ok(
 				firstRenderOutput.includes(showCursorEscape),
 				'cursor should be visible after first render',
+			);
+			t.assert.ok(
+				firstRenderOutput.includes(buildCursorShape('pipe')),
+				'cursor shape should be written after first render',
 			);
 		},
 	);
@@ -1373,7 +1420,29 @@ test('Handle sanitized control characters', async (t: TestContext) => {
 		{stdoutColumns: 100},
 		({getLastCursor, getLastTrimmedRender}) => {
 			t.assert.strictEqual(getLastTrimmedRender(), 'ABC');
-			t.assert.deepStrictEqual(getLastCursor(), {x: 1, y: 0});
+			t.assert.deepStrictEqual(getLastCursor(), {x: 1, y: 0, shape: undefined});
+		},
+	);
+});
+
+test('<Cursor /> shape is written when rendered by itself', async (t: TestContext) => {
+	await withInteractiveRender(
+		<Box width={3} overflowX="hidden">
+			<Cursor shape="pipe" />
+		</Box>,
+		{stdoutColumns: 3},
+		({getLastCursor, getWriteCallsString}) => {
+			t.assert.deepStrictEqual(getLastCursor(), {x: 0, y: 0, shape: 'pipe'});
+
+			const firstRenderOutput = getWriteCallsString();
+			t.assert.ok(
+				firstRenderOutput.includes(showCursorEscape),
+				'cursor should be visible after first render',
+			);
+			t.assert.ok(
+				firstRenderOutput.includes(buildCursorShape('pipe')),
+				'cursor shape should be written after first render',
+			);
 		},
 	);
 });

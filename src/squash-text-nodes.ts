@@ -50,8 +50,7 @@ const squashTextNodes = (node: DOMElement): SquashedOutput => {
 				if (childNode.internal_cursorOffset !== undefined) {
 					// Outer Cursor elements override inner ones
 					// NOTE: We don't support explicit offsets, yet
-					cursorHelper.setCursorPosition();
-					cursorHelper.cursorShape = node.internal_cursorShape;
+					cursorHelper.setCursorPosition(childNode.internal_cursorShape);
 				} else if (childNodeCursor !== undefined) {
 					nodeCursor = childNodeCursor;
 				}
@@ -86,8 +85,7 @@ const squashTextNodes = (node: DOMElement): SquashedOutput => {
 	) {
 		// The only valid cursorOffset in this situation is zero; so if it's set it must be zero
 		cursor = 0;
-		cursorHelper.setCursorPosition();
-		cursorHelper.cursorShape = node.internal_cursorShape;
+		cursorHelper.setCursorPosition(node.internal_cursorShape);
 	}
 
 	text = sanitizeSquashedText(node, text);
