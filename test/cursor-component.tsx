@@ -17,9 +17,9 @@ import {
 	Transform,
 } from '../src/index.js';
 import {homeAndEraseDown} from '../src/ink.js';
+import {buildCursorShape} from '../src/cursor-helpers.js';
 import {createStdin, emitReadable} from './helpers/create-stdin.js';
 import createStdout, {type FakeStdout} from './helpers/create-stdout.js';
-import {buildCursorShape} from '../src/cursor-helpers.js';
 
 const showCursorEscape = '\u001B[?25h';
 const hideCursorEscape = '\u001B[?25l';
