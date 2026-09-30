@@ -1,5 +1,5 @@
+import {stripVTControlCharacters} from 'node:util';
 import stringWidth from 'string-width';
-import stripAnsi from 'strip-ansi';
 import widestLine from 'widest-line';
 import indentString from 'indent-string';
 import Yoga from 'yoga-layout';
@@ -304,7 +304,7 @@ const wrapCursorOffsetToPosition = ({
 		end: cursorOffset,
 	});
 
-	for (const ch of stripAnsi(wrappedText)) {
+	for (const ch of stripVTControlCharacters(wrappedText)) {
 		// NOTE: If the cursor lands on a newline, it should wrap
 		if (consumable <= 0 && ch !== '\n') break;
 		if (ch === '\n') {
