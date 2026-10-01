@@ -1068,6 +1068,55 @@ test(`truncate-middle with truncated <Cursor /> renders on the ellipsis`, async 
 	);
 });
 
+test(`wrap=truncate-middle - cursor in retained suffix`, async t => {
+	await withInteractiveRender(
+		<Box width={6}>
+			<Text wrap="truncate-middle">
+				abcdefg
+				<Cursor />
+				hi
+			</Text>
+		</Box>,
+		async ({getLastCursor, getLastTrimmedRender}) => {
+			t.is(getLastTrimmedRender(), 'abc…hi');
+			t.deepEqual(getLastCursor(), {x: 4, y: 0});
+		},
+	);
+});
+
+test(`wrap=truncate-middle - cursor within retained suffix`, async t => {
+	await withInteractiveRender(
+		<Box width={6}>
+			<Text wrap="truncate-middle">
+				abcdefgh
+				<Cursor />i
+			</Text>
+		</Box>,
+		async ({getLastCursor, getLastTrimmedRender}) => {
+			t.is(getLastTrimmedRender(), 'abc…hi');
+			t.deepEqual(getLastCursor(), {x: 5, y: 0});
+		},
+	);
+});
+
+test(`wrap=truncate-middle - multiline with cursor on second line`, async t => {
+	await withInteractiveRender(
+		<Box width={5}>
+			<Text wrap="truncate-middle">
+				first long line
+				{'\n'}
+				Hello
+				<Cursor />
+				World
+			</Text>
+		</Box>,
+		async ({getLastCursor, getLastTrimmedRender}) => {
+			t.is(getLastTrimmedRender(), 'fi…ne\nHe…ld');
+			t.deepEqual(getLastCursor(), {x: 2, y: 1});
+		},
+	);
+});
+
 test('padding with <Cursor /> is counted once', async t => {
 	await withInteractiveRender(
 		<Box padding={2}>
