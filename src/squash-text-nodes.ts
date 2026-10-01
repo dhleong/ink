@@ -2,14 +2,20 @@ import stringWidth from 'string-width';
 import wrapAnsi from 'wrap-ansi';
 import {type DOMElement} from './dom.js';
 import sanitizeAnsi from './sanitize-ansi.js';
-import {tokenizeAnsi} from './ansi-tokenizer.js';
+import {iterateAnsiTokens} from './ansi-tokenizer.js';
+import {
+	countNonAnsiGraphemes,
+	iterateGraphemeSegments,
+} from './string-utils.js';
 
 type SquashedOutput = {
 	text: string;
 
 	/**
-	 * The requested cursor *byte* offset (if any) within
-	 * `text`. Ansi sequences are not counted
+	 * The requested cursor *visual* offset (if any) within
+	 * `text` (that is, ignoring ansi sequences, how many
+	 * *graphemes* need to be skipped past within `text` before
+	 * placing the cursor).
 	 */
 	cursorOffset?: number;
 };
@@ -43,10 +49,13 @@ const squashTextNodes = (node: DOMElement): SquashedOutput => {
 				if (childNode.internal_cursorOffset !== undefined) {
 					// Outer Cursor elements override inner ones
 					cursor =
-						text.length +
-						Math.min(newNodeText.length, childNode.internal_cursorOffset);
+						countNonAnsiGraphemes(text) +
+						Math.min(
+							countNonAnsiGraphemes(newNodeText),
+							childNode.internal_cursorOffset,
+						);
 				} else if (cursorOffset !== undefined) {
-					cursor = text.length + cursorOffset;
+					cursor = countNonAnsiGraphemes(text) + cursorOffset;
 				}
 			}
 
@@ -101,44 +110,46 @@ const squashTextNodes = (node: DOMElement): SquashedOutput => {
 const tabSize = 8;
 
 const normalizeCursor = (text: string, cursorOffset: number) => {
-	const before = text.slice(0, cursorOffset);
+	if (cursorOffset === 0) return 0;
 
 	let visualLength = 0;
-	for (const token of tokenizeAnsi(before)) {
+	let offsetsToVisit = cursorOffset;
+	for (const {token} of iterateAnsiTokens(text)) {
+		if (offsetsToVisit <= 0) break;
+
 		if (token.type === 'text') {
-			// Tabs are expanded to 8 spaces during normalization
-			for (const [i, ch] of [...token.value].entries()) {
-				switch (ch) {
+			for (const {index, segment} of iterateGraphemeSegments(token.value)) {
+				visualLength += stringWidth(segment);
+				switch (segment) {
+					// Tabs are expanded to 8 spaces during normalization
 					case '\t': {
 						const spaces = tabSize - (visualLength % tabSize);
-						visualLength += spaces;
 
-						// NOTE: cursorOffset already includes 1 for
+						// NOTE: cursorOffset and visualLength already include 1 for
 						// this byte, so we add one fewer than the
 						// number of spaces added
 						cursorOffset += spaces - 1;
+						visualLength += spaces - 1;
 						break;
 					}
 
 					case '\r': {
-						if (token.value[i + 1] === '\n') {
+						if (token.value[index + 1] === '\n') {
 							--cursorOffset;
 							continue;
-						} else {
-							visualLength += 1;
 						}
 
 						break;
 					}
 
 					default: {
-						visualLength += stringWidth(token.value);
+						// Nothing special to do
+						break;
 					}
 				}
+
+				if (--offsetsToVisit <= 0) break;
 			}
-		} else {
-			// Remove ansi token byte counts
-			cursorOffset -= token.value.length;
 		}
 	}
 

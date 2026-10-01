@@ -9,13 +9,10 @@ import squashTextNodes from './squash-text-nodes.js';
 import renderBorder from './render-border.js';
 import renderBackground from './render-background.js';
 import {type DOMElement} from './dom.js';
+import {take} from './iterable-utils.js';
 import type Output from './output.js';
 import {type CursorPosition} from './cursor-helpers.js';
-import {
-	byteIndexToGraphemeIndex,
-	countOfCharIn,
-	iterateGraphemeSegments,
-} from './string-utils.js';
+import {iterateGraphemeSegments} from './string-utils.js';
 
 // If parent container is `<Box>`, text nodes will be treated as separate nodes in
 // the tree and will have their own coordinates in the layout.
@@ -293,7 +290,7 @@ const wrapCursorOffsetToPosition = ({
 }) => {
 	let x = 0;
 	let y = 0;
-	let consumable = byteIndexToGraphemeIndex(originalText, cursorOffset);
+	let consumable = cursorOffset;
 	if (consumable <= 0) {
 		// Easy case:
 		return {x, y};
@@ -302,11 +299,15 @@ const wrapCursorOffsetToPosition = ({
 	// Any newlines in originalText should be "consumed" when
 	// counting cursor offsets; any others were introduced by
 	// wrapping and should not be counted as part of cursorOffset
-	let consumableNewlines = countOfCharIn({
-		text: originalText,
-		char: '\n',
-		end: cursorOffset,
-	});
+	let consumableNewlines = 0;
+	for (const {segment} of take(
+		iterateGraphemeSegments(stripVTControlCharacters(originalText)),
+		consumable,
+	)) {
+		if (segment === '\n') {
+			++consumableNewlines;
+		}
+	}
 
 	const wrappedGraphemes = iterateGraphemeSegments(
 		stripVTControlCharacters(wrappedText),
