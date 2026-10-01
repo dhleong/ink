@@ -1047,6 +1047,22 @@ for (const {wrap, expected} of [
 	});
 }
 
+test(`wrap=truncate-start - cursor in middle`, async t => {
+	await withInteractiveRender(
+		<Box width={5}>
+			<Text wrap="truncate-start">
+				abcdefg
+				<Cursor />
+				hi
+			</Text>
+		</Box>,
+		async ({getLastCursor, getLastTrimmedRender}) => {
+			t.is(getLastTrimmedRender(), '…fghi');
+			t.deepEqual(getLastCursor(), {x: 3, y: 0});
+		},
+	);
+});
+
 test(`truncate-middle with truncated <Cursor /> renders on the ellipsis`, async t => {
 	await withInteractiveRender(
 		<Box width={5}>
