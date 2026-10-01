@@ -100,8 +100,8 @@ async function withInteractiveRender(
 ) {
 	const opts =
 		providedHandler === undefined
-			? (optsOrHandler as InteractiveRenderOpts)
-			: {};
+			? {}
+			: (optsOrHandler as InteractiveRenderOpts);
 	const handler =
 		providedHandler ?? (optsOrHandler as InteractiveRenderHandler);
 
