@@ -12,7 +12,11 @@ import {type DOMElement} from './dom.js';
 import {take} from './iterable-utils.js';
 import type Output from './output.js';
 import {type CursorPosition} from './cursor-helpers.js';
-import {iterateGraphemeSegments} from './string-utils.js';
+import {
+	graphemeOffsetToByteOffset,
+	iterateGraphemeSegments,
+} from './string-utils.js';
+import {type Styles} from './styles.js';
 
 // If parent container is `<Box>`, text nodes will be treated as separate nodes in
 // the tree and will have their own coordinates in the layout.
@@ -159,34 +163,24 @@ const renderNodeToOutput = (
 				const maxWidth = getMaxWidth(yogaNode);
 				const originalText = text;
 
+				const textWrap = node.style.textWrap ?? 'wrap';
 				if (currentWidth > maxWidth) {
-					const textWrap = node.style.textWrap ?? 'wrap';
 					text = wrapText(text, maxWidth, textWrap);
 				}
 
 				if (cursorOffset !== undefined) {
-					let {x: newX, y: newY} = wrapCursorOffsetToPosition({
-						originalText,
-						wrappedText: text,
-						cursorOffset,
-					});
-
-					const textWrap = node.style.textWrap ?? 'wrap';
-					if (currentWidth > maxWidth) {
-						let maxX = maxWidth;
-						if (textWrap === 'truncate-middle') {
-							const truncatedAmount = currentWidth - maxWidth;
-							const truncationStart = Math.floor(maxWidth / 2);
-							if (
-								cursorOffset >= truncationStart &&
-								cursorOffset < truncationStart + truncatedAmount
-							) {
-								maxX = truncationStart;
-							}
-						}
-
-						newX = Math.min(maxX, newX);
-					}
+					const {x: newX, y: newY} = textWrap.startsWith('truncate')
+						? truncateCursorOffsetToPosition({
+								originalText,
+								cursorOffset,
+								maxWidth,
+								wrapType: textWrap,
+							})
+						: wrapCursorOffsetToPosition({
+								originalText,
+								wrappedText: text,
+								cursorOffset,
+							});
 
 					effects = {
 						cursorPosition: {x: x + newX, y: y + newY},
@@ -277,6 +271,101 @@ const renderNodeToOutput = (
 	}
 
 	return undefined;
+};
+
+const truncateCursorOffsetToPosition = ({
+	originalText,
+	cursorOffset,
+	maxWidth,
+	wrapType,
+}: {
+	originalText: string;
+	cursorOffset: number;
+	maxWidth: number;
+	wrapType: Styles['textWrap'];
+}) => {
+	if (maxWidth > 0 && maxWidth < 1) {
+		maxWidth = 1;
+	}
+
+	const cleanText = stripVTControlCharacters(originalText);
+	let lineIndex = 0;
+	let lineStartIndex = 0;
+	let cursorGraphemesInLine = cursorOffset;
+	let graphemesInLine = 0;
+	for (const {index, segment} of take(
+		iterateGraphemeSegments(cleanText),
+		cursorOffset,
+	)) {
+		++graphemesInLine;
+		if (segment === '\n') {
+			cursorGraphemesInLine -= graphemesInLine;
+			graphemesInLine = 0;
+			++lineIndex;
+			lineStartIndex = index + 1;
+		}
+	}
+
+	const lineEndIndex = cleanText.indexOf('\n', lineStartIndex);
+	const currentLine = cleanText.slice(
+		lineStartIndex,
+		lineEndIndex === -1 ? cleanText.length : lineEndIndex,
+	);
+	const cursorByteOffset = graphemeOffsetToByteOffset(
+		currentLine,
+		cursorGraphemesInLine,
+	);
+
+	const lineWidth = stringWidth(currentLine);
+	if (lineWidth <= maxWidth) {
+		// Not truncated!
+		return {
+			x: stringWidth(currentLine.slice(0, cursorByteOffset)),
+			y: lineIndex,
+		};
+	}
+
+	if (maxWidth <= 0) {
+		return {x: 0, y: lineIndex};
+	}
+
+	if (maxWidth === 1) {
+		return {x: Math.min(1, cursorGraphemesInLine), y: lineIndex};
+	}
+
+	let position: 'end' | 'middle' | 'start' = 'end';
+	if (wrapType === 'truncate-middle') {
+		position = 'middle';
+	} else if (wrapType === 'truncate-start') {
+		position = 'start';
+	}
+
+	let half = 0;
+	if (position === 'middle') {
+		half = Math.min(Math.floor(maxWidth / 2), Math.max(0, maxWidth - 1));
+	} else if (position === 'end') {
+		half = Math.max(0, maxWidth - 1);
+	}
+
+	const prefixLen = half;
+	const prefix = currentLine.slice(0, half);
+	const suffixLen = maxWidth - half - 1;
+	const suffix = currentLine.slice(lineWidth - suffixLen, lineWidth);
+
+	const suffixStartInCurrentLine = currentLine.length - suffixLen;
+
+	let x: number;
+	if (cursorByteOffset <= prefixLen) {
+		x = stringWidth(currentLine.slice(0, cursorByteOffset));
+	} else if (cursorByteOffset < suffixStartInCurrentLine) {
+		x = stringWidth(prefix);
+	} else {
+		const offsetInSuffix = cursorByteOffset - suffixStartInCurrentLine;
+		const suffixBeforeCursor = suffix.slice(0, offsetInSuffix);
+		x = stringWidth(prefix) + 1 + stringWidth(suffixBeforeCursor);
+	}
+
+	return {x, y: lineIndex};
 };
 
 const wrapCursorOffsetToPosition = ({
