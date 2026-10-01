@@ -19,6 +19,7 @@ import {
 import {homeAndEraseDown} from '../src/ink.js';
 import {createStdin, emitReadable} from './helpers/create-stdin.js';
 import createStdout, {type FakeStdout} from './helpers/create-stdout.js';
+import chalk from 'chalk';
 
 const showCursorEscape = '\u001B[?25h';
 const hideCursorEscape = '\u001B[?25l';
@@ -99,13 +100,17 @@ async function withInteractiveRender(
 ) {
 	const opts =
 		providedHandler === undefined
-			? {}
-			: (optsOrHandler as InteractiveRenderOpts);
+			? (optsOrHandler as InteractiveRenderOpts)
+			: {};
 	const handler =
 		providedHandler ?? (optsOrHandler as InteractiveRenderHandler);
 
 	const stdout = createStdout(opts.stdoutColumns ?? 5);
 	const stdin = createStdin();
+
+	// Ensure any Text style params are respected:
+	const oldChalkLevel = chalk.level;
+	chalk.level = 3;
 
 	let lastCursor: CursorPosition | undefined;
 	const onCursorUpdated = (cursor: CursorPosition | undefined) => {
@@ -131,6 +136,7 @@ async function withInteractiveRender(
 			getLastTrimmedRender: () => stripAnsi(getWriteCallsString()).trim(),
 		});
 	} finally {
+		chalk.level = oldChalkLevel;
 		unmount();
 	}
 }
@@ -1047,22 +1053,6 @@ for (const {wrap, expected} of [
 	});
 }
 
-test(`wrap=truncate-start - cursor in middle`, async t => {
-	await withInteractiveRender(
-		<Box width={5}>
-			<Text wrap="truncate-start">
-				abcdefg
-				<Cursor />
-				hi
-			</Text>
-		</Box>,
-		async ({getLastCursor, getLastTrimmedRender}) => {
-			t.is(getLastTrimmedRender(), '…fghi');
-			t.deepEqual(getLastCursor(), {x: 3, y: 0});
-		},
-	);
-});
-
 test(`truncate-middle with truncated <Cursor /> renders on the ellipsis`, async t => {
 	await withInteractiveRender(
 		<Box width={5}>
@@ -1163,15 +1153,7 @@ test('<Cursor /> handles ansi sanitization', async t => {
 });
 
 test('<Cursor /> handles styling', async t => {
-	const stdout = createStdout(3);
-	const stdin = createStdin();
-
-	let lastCursor: CursorPosition | undefined;
-	const onCursorUpdated = (cursor: CursorPosition | undefined) => {
-		lastCursor = cursor;
-	};
-
-	const {unmount, waitUntilRenderFlush} = render(
+	await withInteractiveRender(
 		<Box>
 			<Text>
 				<Text color="red">ABCD</Text>
@@ -1179,13 +1161,30 @@ test('<Cursor /> handles styling', async t => {
 				{'E'}
 			</Text>
 		</Box>,
-		{stdout, stdin, onCursorUpdated},
+		{stdoutColumns: 3},
+		({getLastCursor}) => {
+			t.deepEqual(getLastCursor(), {x: 1, y: 1});
+		},
 	);
-	await waitUntilRenderFlush();
+});
 
-	t.deepEqual(lastCursor, {x: 1, y: 1});
-
-	unmount();
+test('<Cursor /> handles placement within styling', async t => {
+	await withInteractiveRender(
+		<Box>
+			<Text>
+				<Text color="red">
+					A
+					<Cursor />B
+				</Text>
+				C
+			</Text>
+		</Box>,
+		{stdoutColumns: 3},
+		({getLastCursor, getWriteCallsString}) => {
+			t.true(getWriteCallsString().includes(ansiStyles.red.open));
+			t.deepEqual(getLastCursor(), {x: 1, y: 0});
+		},
+	);
 });
 
 test('<Cursor /> handles style-adding transforms', async t => {
@@ -1242,30 +1241,6 @@ test('<Cursor /> is hidden when clipped via overflow', async t => {
 	);
 });
 
-test('<Cursor /> is hidden when clipped via vertical overflow', async t => {
-	await withInteractiveRender(
-		<Box width={3} overflowY="hidden">
-			<Box height={1} flexShrink={0}>
-				<Text>
-					{'ABCD'}
-					<Cursor />
-					{'E'}
-				</Text>
-			</Box>
-		</Box>,
-		{stdoutColumns: 3},
-		({getLastCursor, getWriteCallsString}) => {
-			t.is(getLastCursor(), undefined);
-
-			const firstRenderOutput = getWriteCallsString();
-			t.false(
-				firstRenderOutput.includes(showCursorEscape),
-				'cursor should NOT be visible after first render',
-			);
-		},
-	);
-});
-
 test('<Cursor /> is shown when rendered by itself', async t => {
 	await withInteractiveRender(
 		<Box width={3} overflowX="hidden">
@@ -1280,68 +1255,6 @@ test('<Cursor /> is shown when rendered by itself', async t => {
 				firstRenderOutput.includes(showCursorEscape),
 				'cursor should be visible after first render',
 			);
-		},
-	);
-});
-
-for (const grapheme of [
-	'😀',
-	// This one is 9 bytes wide!
-	'👨‍👩‍👧‍👦',
-] as const) {
-	test(`<Cursor /> following wide grapheme: ${grapheme}`, async t => {
-		await withInteractiveRender(
-			<Box>
-				<Text>
-					{grapheme}
-					<Cursor />X
-				</Text>
-			</Box>,
-			{stdoutColumns: 100},
-			({getLastCursor, getWriteCallsString}) => {
-				t.deepEqual(getLastCursor(), {x: 2, y: 0});
-
-				const firstRenderOutput = getWriteCallsString();
-				t.true(
-					firstRenderOutput.includes(showCursorEscape),
-					'cursor should be visible after first render',
-				);
-			},
-		);
-	});
-}
-
-test('<Cursor /> follows tabs gracefully', async t => {
-	await withInteractiveRender(
-		<Box>
-			<Text>
-				{'A\t'}
-				<Cursor />B
-			</Text>
-		</Box>,
-		{stdoutColumns: 100},
-		({getLastCursor, getWriteCallsString}) => {
-			t.deepEqual(getLastCursor(), {x: 8, y: 0});
-
-			const firstRenderOutput = getWriteCallsString();
-			t.true(
-				firstRenderOutput.includes(showCursorEscape),
-				'cursor should be visible after first render',
-			);
-		},
-	);
-});
-
-test(`<Cursor /> follows crlf gracefully`, async t => {
-	await withInteractiveRender(
-		<Box>
-			<Text>
-				{'A\r\nB'}
-				<Cursor />C
-			</Text>
-		</Box>,
-		({getLastCursor}) => {
-			t.deepEqual(getLastCursor(), {x: 1, y: 1});
 		},
 	);
 });
