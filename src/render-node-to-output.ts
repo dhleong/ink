@@ -179,16 +179,10 @@ const renderNodeToOutput = (
 						let maxX = maxWidth;
 						if (textWrap === 'truncate-middle') {
 							const truncatedAmount = currentWidth - maxWidth;
-							// CursorOffset is now grapheme based, compute column position for comparison
-							const {x: cursorCol} = wrapCursorOffsetToPosition({
-								originalText,
-								wrappedText: originalText,
-								cursorOffset,
-							});
 							const truncationStart = Math.floor(maxWidth / 2);
 							if (
-								cursorCol >= truncationStart &&
-								cursorCol < truncationStart + truncatedAmount
+								cursorOffset >= truncationStart &&
+								cursorOffset < truncationStart + truncatedAmount
 							) {
 								maxX = truncationStart;
 							}
