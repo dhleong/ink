@@ -2,6 +2,7 @@ import wrapAnsi from 'wrap-ansi';
 import {type DOMElement} from './dom.js';
 import sanitizeAnsi from './sanitize-ansi.js';
 import {tokenizeAnsi} from './ansi-tokenizer.js';
+import stringWidth from 'string-width';
 
 type SquashedOutput = {
 	text: string;
@@ -97,12 +98,41 @@ const squashTextNodes = (node: DOMElement): SquashedOutput => {
 	};
 };
 
+const TAB_SIZE = 8;
+
 const normalizeCursor = (text: string, cursorOffset: number) => {
 	const before = text.slice(0, cursorOffset);
 
+	let visualLength = 0;
 	for (const token of tokenizeAnsi(before)) {
 		if (token.type !== 'text') {
+			// Remove ansi token byte counts
 			cursorOffset -= token.value.length;
+		} else {
+			// Tabs are expanded to 8 spaces during normalization
+			for (const [i, ch] of [...token.value].entries()) {
+				switch (ch) {
+					case '\t':
+						const spaces = TAB_SIZE - (visualLength % TAB_SIZE);
+						visualLength += spaces;
+
+						// NOTE: cursorOffset already includes 1 for
+						// this byte, so we add one fewer than the
+						// number of spaces added
+						cursorOffset += spaces - 1;
+						break;
+					case '\r':
+						if (token.value[i + 1] == '\n') {
+							--cursorOffset;
+							continue;
+						} else {
+							visualLength += 1;
+						}
+						break;
+					default:
+						visualLength += stringWidth(token.value);
+				}
+			}
 		}
 	}
 

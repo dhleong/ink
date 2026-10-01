@@ -1270,3 +1270,38 @@ for (const grapheme of [
 		);
 	});
 }
+
+test('<Cursor /> follows tabs gracefully', async t => {
+	await withInteractiveRender(
+		<Box>
+			<Text>
+				{'A\t'}
+				<Cursor />B
+			</Text>
+		</Box>,
+		{stdoutColumns: 100},
+		({getLastCursor, getWriteCallsString}) => {
+			t.deepEqual(getLastCursor(), {x: 8, y: 0});
+
+			const firstRenderOutput = getWriteCallsString();
+			t.true(
+				firstRenderOutput.includes(showCursorEscape),
+				'cursor should be visible after first render',
+			);
+		},
+	);
+});
+
+test(`<Cursor /> follows crlf gracefully`, async t => {
+	await withInteractiveRender(
+		<Box>
+			<Text>
+				{'A\r\nB'}
+				<Cursor />C
+			</Text>
+		</Box>,
+		({getLastCursor}) => {
+			t.deepEqual(getLastCursor(), {x: 1, y: 1});
+		},
+	);
+});
