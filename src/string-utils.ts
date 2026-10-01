@@ -1,3 +1,5 @@
+const segmenter = new Intl.Segmenter('en', {granularity: 'grapheme'});
+
 export const countOfCharIn = ({
 	text,
 	char,
@@ -21,4 +23,35 @@ export const countOfCharIn = ({
 
 		++count;
 	}
+};
+
+/**
+ * @return an Iterator over grapheme segments in `text`
+ */
+export const iterateGraphemeSegments = (text: string) => {
+	return segmenter.segment(text);
+};
+
+/**
+ * Given a byte index into a string, compute the "grapheme
+ * index"---that is, how many graphemes proceed the byte index.
+ */
+export const byteIndexToGraphemeIndex = (
+	text: string,
+	byteIndex: number,
+): number => {
+	if (byteIndex <= 0) {
+		return 0;
+	}
+
+	let graphemeIdx = 0;
+	for (const {index} of iterateGraphemeSegments(text)) {
+		if (index >= byteIndex) {
+			break;
+		}
+
+		graphemeIdx++;
+	}
+
+	return graphemeIdx;
 };

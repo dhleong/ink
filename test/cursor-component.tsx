@@ -1243,3 +1243,30 @@ test('<Cursor /> is shown when rendered by itself', async t => {
 		},
 	);
 });
+
+for (const grapheme of [
+	'😀',
+	// This one is 9 bytes wide!
+	'👨‍👩‍👧‍👦',
+] as const) {
+	test(`<Cursor /> following wide grapheme: ${grapheme}`, async t => {
+		await withInteractiveRender(
+			<Box>
+				<Text>
+					{grapheme}
+					<Cursor />X
+				</Text>
+			</Box>,
+			{stdoutColumns: 100},
+			({getLastCursor, getWriteCallsString}) => {
+				t.deepEqual(getLastCursor(), {x: 2, y: 0});
+
+				const firstRenderOutput = getWriteCallsString();
+				t.true(
+					firstRenderOutput.includes(showCursorEscape),
+					'cursor should be visible after first render',
+				);
+			},
+		);
+	});
+}

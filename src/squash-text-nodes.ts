@@ -7,8 +7,8 @@ type SquashedOutput = {
 	text: string;
 
 	/**
-	 * The requested cursor offset (if any) within `text`.
-	 * Ansi sequences are not counted
+	 * The requested cursor *byte* offset (if any) within
+	 * `text`. Ansi sequences are not counted
 	 */
 	cursorOffset?: number;
 };

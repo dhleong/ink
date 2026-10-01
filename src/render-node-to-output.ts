@@ -11,7 +11,11 @@ import renderBackground from './render-background.js';
 import {type DOMElement} from './dom.js';
 import type Output from './output.js';
 import {type CursorPosition} from './cursor-helpers.js';
-import {countOfCharIn} from './string-utils.js';
+import {
+	byteIndexToGraphemeIndex,
+	countOfCharIn,
+	iterateGraphemeSegments,
+} from './string-utils.js';
 
 // If parent container is `<Box>`, text nodes will be treated as separate nodes in
 // the tree and will have their own coordinates in the layout.
@@ -175,10 +179,16 @@ const renderNodeToOutput = (
 						let maxX = maxWidth;
 						if (textWrap === 'truncate-middle') {
 							const truncatedAmount = currentWidth - maxWidth;
+							// CursorOffset is now grapheme based, compute column position for comparison
+							const {x: cursorCol} = wrapCursorOffsetToPosition({
+								originalText,
+								wrappedText: originalText,
+								cursorOffset,
+							});
 							const truncationStart = Math.floor(maxWidth / 2);
 							if (
-								cursorOffset >= truncationStart &&
-								cursorOffset < truncationStart + truncatedAmount
+								cursorCol >= truncationStart &&
+								cursorCol < truncationStart + truncatedAmount
 							) {
 								maxX = truncationStart;
 							}
@@ -289,7 +299,7 @@ const wrapCursorOffsetToPosition = ({
 }) => {
 	let x = 0;
 	let y = 0;
-	let consumable = cursorOffset;
+	let consumable = byteIndexToGraphemeIndex(originalText, cursorOffset);
 	if (consumable <= 0) {
 		// Easy case:
 		return {x, y};
@@ -304,10 +314,13 @@ const wrapCursorOffsetToPosition = ({
 		end: cursorOffset,
 	});
 
-	for (const ch of stripVTControlCharacters(wrappedText)) {
+	const wrappedGraphemes = iterateGraphemeSegments(
+		stripVTControlCharacters(wrappedText),
+	);
+	for (const {segment} of wrappedGraphemes) {
 		// NOTE: If the cursor lands on a newline, it should wrap
-		if (consumable <= 0 && ch !== '\n') break;
-		if (ch === '\n') {
+		if (consumable <= 0 && segment !== '\n') break;
+		if (segment === '\n') {
 			x = 0;
 			++y;
 
@@ -317,7 +330,7 @@ const wrapCursorOffsetToPosition = ({
 			}
 		} else {
 			--consumable;
-			x += stringWidth(ch);
+			x += stringWidth(segment);
 		}
 	}
 
