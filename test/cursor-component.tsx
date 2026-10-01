@@ -1226,6 +1226,30 @@ test('<Cursor /> is hidden when clipped via overflow', async t => {
 	);
 });
 
+test('<Cursor /> is hidden when clipped via vertical overflow', async t => {
+	await withInteractiveRender(
+		<Box width={3} overflowY="hidden">
+			<Box height={1} flexShrink={0}>
+				<Text>
+					{'ABCD'}
+					<Cursor />
+					{'E'}
+				</Text>
+			</Box>
+		</Box>,
+		{stdoutColumns: 3},
+		({getLastCursor, getWriteCallsString}) => {
+			t.is(getLastCursor(), undefined);
+
+			const firstRenderOutput = getWriteCallsString();
+			t.false(
+				firstRenderOutput.includes(showCursorEscape),
+				'cursor should NOT be visible after first render',
+			);
+		},
+	);
+});
+
 test('<Cursor /> is shown when rendered by itself', async t => {
 	await withInteractiveRender(
 		<Box width={3} overflowX="hidden">
