@@ -324,13 +324,13 @@ function* malformedFromIndex(
 			index: textStartIndex,
 			token: {type: 'text', value: text.slice(textStartIndex, fromIndex)},
 		};
-	} else {
-		// Treat the remainder as invalid so callers can drop it as one unsafe unit.
-		yield {
-			index: fromIndex,
-			token: {type: 'invalid', value: text.slice(fromIndex)},
-		};
 	}
+
+	// Treat the remainder as invalid so callers can drop it as one unsafe unit.
+	yield {
+		index: fromIndex,
+		token: {type: 'invalid', value: text.slice(fromIndex)},
+	};
 }
 
 export function* iterateAnsiTokens(
