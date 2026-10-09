@@ -18,7 +18,7 @@ import {
 	Transform,
 } from '../src/index.js';
 import {homeAndEraseDown} from '../src/ink.js';
-import {buildCursorShape} from '../src/cursor-helpers.js';
+import {buildCursorShape, type CursorShape} from '../src/cursor-helpers.js';
 import {createStdin, emitReadable} from './helpers/create-stdin.js';
 import createStdout, {type FakeStdout} from './helpers/create-stdout.js';
 import {act} from './helpers/act.js';
@@ -88,6 +88,7 @@ type InteractiveRenderProps = {
 	getLastCursorCoord: () => Omit<CursorPosition, 'shape'> | undefined;
 	getWriteCallsString: () => string;
 	getLastTrimmedRender: () => string;
+	rerender: (node: React.ReactNode) => Promise<void>;
 };
 type InteractiveRenderHandler = (
 	props: InteractiveRenderProps,
@@ -126,13 +127,19 @@ async function withInteractiveRender(
 		lastCursor = cursor;
 	};
 
-	const {unmount, waitUntilRenderFlush} = render(node, {
+	const {rerender, unmount, waitUntilRenderFlush} = render(node, {
 		stdout,
 		stdin,
 		onCursorUpdated,
 	});
 
-	const getWriteCallsString = () => getWriteCalls(stdout).join('');
+	let lastWriteCallsCount = 0;
+	const getWriteCallsString = () => {
+		const callsStart = lastWriteCallsCount;
+		const calls = getWriteCalls(stdout);
+		lastWriteCallsCount = calls.length;
+		return calls.slice(callsStart).join('');
+	};
 
 	try {
 		await waitUntilRenderFlush();
@@ -147,6 +154,10 @@ async function withInteractiveRender(
 					: {x: lastCursor.x, y: lastCursor.y},
 			getWriteCallsString,
 			getLastTrimmedRender: () => stripAnsi(getWriteCallsString()).trim(),
+			rerender: async component => {
+				rerender(component);
+				await waitUntilRenderFlush();
+			},
 		});
 	} finally {
 		chalk.level = oldChalkLevel;
@@ -1442,6 +1453,43 @@ test('<Cursor /> shape is written when rendered by itself', async (t: TestContex
 			t.assert.ok(
 				firstRenderOutput.includes(buildCursorShape('pipe')),
 				'cursor shape should be written after first render',
+			);
+		},
+	);
+});
+
+test('<Cursor /> shape is updated when only it changes', async (t: TestContext) => {
+	const JustCursor = ({shape}: {shape: CursorShape | undefined}) => {
+		return (
+			<Box width={3} overflowX="hidden">
+				<Cursor shape={shape} />
+			</Box>
+		);
+	};
+	await withInteractiveRender(
+		<JustCursor shape={undefined} />,
+		{stdoutColumns: 3},
+		async ({getLastCursor, getWriteCallsString, rerender}) => {
+			t.assert.deepStrictEqual(getLastCursor(), {x: 0, y: 0, shape: undefined});
+
+			const firstRenderOutput = getWriteCallsString();
+			t.assert.ok(
+				firstRenderOutput.includes(showCursorEscape),
+				'cursor should be visible after first render',
+			);
+			t.assert.notStrictEqual(
+				firstRenderOutput.includes(buildCursorShape('pipe')),
+				true,
+				'cursor shape should be written after first render',
+			);
+
+			await rerender(<JustCursor shape="pipe" />);
+
+			t.assert.deepStrictEqual(getLastCursor(), {x: 0, y: 0, shape: 'pipe'});
+			const secondRenderOutput = getWriteCallsString();
+			t.assert.ok(
+				secondRenderOutput.includes(buildCursorShape('pipe')),
+				'cursor shape should be written after second render',
 			);
 		},
 	);
