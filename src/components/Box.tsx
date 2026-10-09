@@ -59,7 +59,10 @@ export type Props = Except<Styles, 'textWrap'> & {
 `<Box>` is an essential Ink component to build your layout. It's like `<div style="display: flex">` in the browser.
 */
 // eslint-disable-next-line @eslint-react/no-forward-ref -- Removing `forwardRef` changes the public component type of `Box`.
-const Box = forwardRef<DOMElement, PropsWithChildren<Props>>(
+const Box: React.ComponentType<PropsWithChildren<Props>> = forwardRef<
+	DOMElement,
+	PropsWithChildren<Props>
+>(
 	(
 		{
 			children,
